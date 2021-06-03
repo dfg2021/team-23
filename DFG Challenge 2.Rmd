@@ -1,0 +1,178 @@
+---
+title: "Data for Good Challenge 2 - Climate Change"
+author: "Robin Hollingsworth"
+date: "6/3/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(reshape2)
+
+country_data <- read.csv("config_files/FFG_Hackathon_Country_Level_Data.csv")
+region_data <- read.csv("config_files/FFG_Hackathon_Region_Level_Data.csv")
+```
+
+
+```{r}
+metaColC <- c( "Year", "Country.Name", "Country.Code", "agricultural.land", "land.area", "surface.area", "elecProd.coal", "elecProd.oilgascoal", "elecProd.hydroelec", "elecProd.naturalgas", "elecProd.nuclear", "elecProd.oil", "renewable.output.perc", "elecProduc.renew.excludeHydro", "elecProduc.renew.excludeHydro.perc", "renewable.consumption", "gdp.per.energyUse", "alt.nuclear.energy.use.perc", "fossil.fuel.consumption.perc", "electric.consumption",  "CO2.emissions.gaseous.fuel", "CO2.emissions.gaseous.fuel.perc", "CO2.emissions.kt", "CO2.emissions.liquid.fuel", "CO2.emissions.liquid.fuel.perc", "CO2.emissions.tonsPerCapita", "CO2.emissions.kgPerPPPofGDP", "CO2.emissions.solid.fuel",  "CO2.emissions.solid.fuel.perc",  "CO2.emissions.res.com.public",  "CO2.emissions.elec.heat.production",  "CO2.emissions.manufacturing.construction",  "CO2.emissions.other",  "CO2.emissions.transport",  "population.density", "total.natural.resources", "rural.pop", "urban.pop")
+
+metaColR <- c( "Year", "Region.Name", "Region.Code", "agricultural.land", "land.area", "surface.area", "elecProd.coal", "elecProd.oilgascoal", "elecProd.hydroelec", "elecProd.naturalgas", "elecProd.nuclear", "elecProd.oil", "renewable.output.perc", "elecProduc.renew.excludeHydro", "elecProduc.renew.excludeHydro.perc", "renewable.consumption", "gdp.per.energyUse", "alt.nuclear.energy.use.perc", "fossil.fuel.consumption.perc", "electric.consumption",  "CO2.emissions.gaseous.fuel", "CO2.emissions.gaseous.fuel.perc", "CO2.emissions.kt", "CO2.emissions.liquid.fuel", "CO2.emissions.liquid.fuel.perc", "CO2.emissions.tonsPerCapita", "CO2.emissions.kgPerPPPofGDP", "CO2.emissions.solid.fuel",  "CO2.emissions.solid.fuel.perc",  "CO2.emissions.res.com.public",  "CO2.emissions.elec.heat.production",  "CO2.emissions.manufacturing.construction",  "CO2.emissions.other",  "CO2.emissions.transport",  "population.density", "total.natural.resources", "rural.pop", "urban.pop")
+
+colnames(country_data) <- metaColC
+colnames(region_data) <- metaColR
+```
+
+
+# Are we on track to meet the 2030 Sustainable Development Goal?
+```{r}
+CO2emissions <- country_data %>% group_by(Year) %>% 
+  summarize(totalCO2 = sum(CO2.emissions.kt, na.rm=TRUE))
+CO2emissions %>%
+  ggplot() +
+  geom_point(aes(x=Year, y=totalCO2)) +
+  geom_line(aes(x=Year, y=totalCO2)) +
+  ggtitle("Total CO2 Emissions from 2007-2016") +
+  ylab("kilotons(kt)")
+``` 
+
+
+```{r}
+CO2_2014 <- country_data %>% filter(Year==2014) %>% select("CO2.emissions.kt") %>% sum(na.rm=TRUE)
+CO2_2015 <- country_data %>% filter(Year==2015) %>% select("CO2.emissions.kt") %>% sum(na.rm=TRUE)
+CO2_2016 <- country_data %>% filter(Year==2016) %>% select("CO2.emissions.kt") %>% sum(na.rm=TRUE)
+
+r1 <- (CO2_2015 - CO2_2014) / CO2_2014
+r2 <- (CO2_2016 - CO2_2015) / CO2_2015
+avg <- (r1+r2)/2
+goal <-(CO2_2014 * (1-0.076)^(2030-2014))
+new_rate <- 1 - (goal/ CO2_2016)^(1/14) 
+new_rate
+```
+
+
+The graph shows that from 2007 to 2014, total CO2 emissions were growing exponentially. However, they started to decrease from 2014 to 2016. From 2014 to 2015, total CO2 emissions decreased by 2.05% and from 2015 to 2016, decreased by 0.83%. This averages to a 1.44% decrease in carbon emissions per year. This does not match the targeted 7.6% annual emissions reduction goal set for 2030. 
+
+This means we need to implement stricter policies and increase awareness for climate change if we want to accomplish our 7.6% annual target rate.
+
+
+```{r}
+data2016 <- country_data %>% filter(Year==2016) %>% mutate(CO22016=CO2.emissions.kt) %>%
+  select(Country.Name, CO22016)
+data2015 <- country_data %>% filter(Year==2015) %>% mutate(CO22015=CO2.emissions.kt) %>%
+  select(Country.Name, CO22015)
+data2014 <- country_data %>% filter(Year==2014) %>% mutate(CO22014=CO2.emissions.kt) %>%
+  select(Country.Name, CO22014)
+rates <- data2016 %>% full_join(data2015) %>% full_join(data2014)
+rates %<>% mutate(rt1415 = (CO22015-CO22014)/CO22014,
+                  rt1516 = (CO22016-CO22015)/CO22015,
+                  rt1416 = (CO22016-CO22014)/CO22014)
+rates %<>% select(-c(2:4)) %>% melt(id.vars=c("Country.Name"))
+
+# Which countries decreased the most from 2014-2015?
+rates %>% filter(variable == "rt1415") %>% filter(value < 0) %>% mutate(value=abs(value)) %>% top_n(10)
+
+# Which countries decreased the most from 2015-2016?
+rates %>% filter(variable == "rt1516") %>% filter(value < 0) %>% mutate(value=abs(value)) %>% top_n(10)
+
+# Which countries decreased the most from 2014-2016?
+rates %>% filter(variable == "rt1416") %>% filter(value < 0) %>% mutate(value=abs(value)) %>% top_n(10)
+```
+
+
+The countries that have decreased the most in CO2 emissions are Albania, Angola, 	Brunei Darussalam,	Congo Dem. Rep.,	Libya, 	Mongolia, Norway, Singapore, Suriname, Yemen. Surprisingly, these would not traditionally be considered the biggest or most influential countries in the world. 
+
+
+# Regions with the Highest CO2 Emissions
+```{r}
+region_data %>% filter(Region.Code %in% c("LCN", "SAS", "NAC", "ECS", "SSF","MEA")) %>%
+  ggplot() +
+  geom_point(aes(x=Year, y=CO2.emissions.kt)) +
+  geom_line(aes(x=Year, y=CO2.emissions.kt, color=Region.Name)) +
+  ggtitle("CO2 Emissions by Geographic Regions") +
+  ylab("CO2 Emissions in kilotons (kt)") +
+  scale_color_discrete("Region")
+```
+```{r}
+region_data %>% filter(Region.Name %in% c("High income", "Lower middle income","Middle income", "Upper middle income")) %>%
+  ggplot() +
+  geom_point(aes(x=Year, y=CO2.emissions.kt)) +
+  geom_line(aes(x=Year, y=CO2.emissions.kt, color=Region.Name)) +
+  ggtitle("CO2 Emissions by Socio-economic Regions") +
+  ylab("CO2 Emissions in kilotons (kt)") +
+  scale_color_discrete("Region")
+```
+
+# Food Waste Regions
+```{r}
+foodRegions <- read.csv("12.3.1.aFood_loss_percentage.csv")
+
+foodRegions %>%
+  ggplot() +
+  geom_bar(aes(y=GeoAreaName, x=Value), stat='identity')
+```
+
+```{r}
+x<-c("LCN", "SAS", "NAC", "ECS", "SSF", "MEA")
+y<-c(11.6, 7.8, 15.7, 15.7, 14, 10.8)
+foodwasteperc <- data.frame(Region.Code=x, foodWastePercent=y)
+
+regions <- left_join(region_data, foodwasteperc) %>% filter(Region.Code %in% c("LCN", "SAS", "NAC", "ECS", "SSF","MEA"))
+```
+
+# Correlations
+```{r}
+cor(region_data$CO2.emissions.kt, region_data$agricultural.land)
+```
+
+
+```{r}
+cor(regions$CO2.emissions.kt, regions$foodWastePercent)
+```
+
+
+```{r}
+cor(region_data$CO2.emissions.kt, region_data$urban.pop)
+```
+
+
+```{r}
+regions %>% group_by(Region.Name) %>% summarize(avgUrbanPop = mean(urban.pop)) %>% top_n(10) %>%
+  ggplot() +
+  geom_bar(aes(y=reorder(Region.Name,avgUrbanPop), x=avgUrbanPop), stat="identity")
+```
+
+
+
+# 20 Countries with highest CO2 emissions in 2016
+```{r}
+top20 <- country_data %>% group_by(Country.Name) %>% 
+  summarize(totalCO2 = sum(CO2.emissions.kt)) %>% arrange(desc(totalCO2)) %>% top_n(20)
+top20 %>%
+  ggplot() +
+  geom_bar(aes(reorder(Country.Name,totalCO2), x=totalCO2), stat='identity') + 
+  ggtitle("Top 20 Countries in CO2 Emissions in 2016") + 
+  xlab("CO2 Emissions in kilotons (kt)") +
+  ylab("Country")
+```
+
+# 20 Countries with highest CO2 emissions per sq km in 2016
+```{r}
+top20 <- country_data %>% group_by(Country.Name) %>% 
+  summarize(totalCO2 = sum(CO2.emissions.tonsPerCapita)) %>% arrange(desc(totalCO2)) %>% top_n(20)
+top20 %>%
+  ggplot() +
+  geom_bar(aes(reorder(Country.Name,totalCO2), x=totalCO2), stat='identity') + 
+  ggtitle("Top 20 Countries in CO2 Emissions per Capita in 2016") + 
+  xlab("CO2 Emissions in kilotons (kt) per Land Area (sq km)") +
+  ylab("Country")
+```
+
+
+
+
+
